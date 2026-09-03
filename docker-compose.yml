@@ -1,0 +1,23 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/${APP_ENV:-local}/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+    ports:
+      - "${APP_PORT:-5173}:5173"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://app:5173
+    depends_on:
+      - app
+    profiles:
+      - tunnel
+
+volumes:
+  node_modules:
