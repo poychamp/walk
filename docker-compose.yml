@@ -6,7 +6,11 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-local}
     ports:
-      - "${APP_PORT:-5173}:5173"
+      # Bound to loopback, not 0.0.0.0. On a server the container sits behind a reverse proxy
+      # and must not answer the public interface directly, or the app is reachable over plain
+      # HTTP beside the proxy, where a service worker cannot register. Override APP_BIND to
+      # 0.0.0.0 only when something on the LAN genuinely needs to reach it.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-5173}:5173"
     volumes:
       - .:/app
       - node_modules:/app/node_modules
