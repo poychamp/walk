@@ -9,6 +9,10 @@ defineEmits(['start'])
       <span class="block italic text-amber">Walk</span>
     </h1>
 
+    <!-- .stop is load bearing. App.vue puts a tap-to-advance handler on main, and this button
+         is inside it. Without stopping propagation, one click starts the walk and then bubbles
+         up to that handler, which sees the screen already switched and advances past part one.
+         Any future control on this screen needs the same. -->
     <button
       type="button"
       class="start mt-16 flex h-[176px] w-[176px] items-center justify-center rounded-full
@@ -18,7 +22,7 @@ defineEmits(['start'])
              focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4
              focus-visible:outline-amber
              active:scale-[0.98] active:border-amber active:text-amber-lift"
-      @click="$emit('start')"
+      @click.stop="$emit('start')"
     >
       Start
     </button>

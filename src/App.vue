@@ -32,7 +32,12 @@ function advance() {
 
 // The whole viewport is the tap target on the walking screen, because the copy says anywhere.
 // It sits on main rather than inside the screen component so the margins and the bottom line
-// count too. Start and end ignore it, so the start button is the only target on start.
+// count too.
+//
+// The guard reads screen at the moment the event reaches main, which is AFTER any handler
+// below has already run. So the Start button has to stop propagation. Without it, one click
+// on Start runs start(), which sets screen to walking, and then keeps bubbling to here, where
+// the guard now passes and advance() eats part one. See the .stop in StartScreen.vue.
 function tap() {
   if (screen.value === 'walking') {
     advance()
