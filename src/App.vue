@@ -29,6 +29,15 @@ function advance() {
   }
   screen.value = 'end'
 }
+
+// The whole viewport is the tap target on the walking screen, because the copy says anywhere.
+// It sits on main rather than inside the screen component so the margins and the bottom line
+// count too. Start and end ignore it, so the start button is the only target on start.
+function tap() {
+  if (screen.value === 'walking') {
+    advance()
+  }
+}
 </script>
 
 <template>
@@ -36,6 +45,7 @@ function advance() {
     class="h-[100dvh] w-full overflow-hidden bg-night-950 text-bone
            pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)]
            pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"
+    @click="tap"
   >
     <div class="relative mx-auto h-full w-full max-w-[420px] px-6">
       <!-- Centred on the 45% line rather than starting at it, so content of varying height
@@ -43,11 +53,7 @@ function advance() {
       <div class="absolute inset-x-6 top-[45%] -translate-y-1/2">
         <Transition name="fade" mode="out-in">
           <StartScreen v-if="screen === 'start'" @start="start" />
-          <WalkingScreen
-            v-else-if="screen === 'walking'"
-            :segment="segment"
-            @advance="advance"
-          />
+          <WalkingScreen v-else-if="screen === 'walking'" :segment="segment" />
           <EndScreen v-else />
         </Transition>
       </div>
@@ -58,6 +64,14 @@ function advance() {
                font-label text-[12px] uppercase tracking-[0.18em] text-haze"
       >
         {{ mornings }} mornings
+      </p>
+
+      <p
+        v-else-if="screen === 'walking'"
+        class="absolute inset-x-0 bottom-[calc(40px+env(safe-area-inset-bottom))] text-center
+               font-label text-[14px] leading-normal text-haze"
+      >
+        tap anywhere to continue
       </p>
     </div>
   </main>

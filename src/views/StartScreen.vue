@@ -14,7 +14,7 @@ defineEmits(['start'])
       class="start mt-16 flex h-[176px] w-[176px] items-center justify-center rounded-full
              border-2 border-dusk-700 bg-transparent
              font-display text-[22px] tracking-[0.01em] text-bone
-             transition duration-200 ease-out motion-reduce:transition-none
+             cursor-pointer transition duration-200 ease-out motion-reduce:transition-none
              focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4
              focus-visible:outline-amber
              active:scale-[0.98] active:border-amber active:text-amber-lift"
