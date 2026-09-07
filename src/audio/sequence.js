@@ -7,8 +7,8 @@
 // to generic names is an edit here and nowhere else.
 //
 // Per the guide, one is always first and five is always last. Two, three and four may be
-// taken in any order.
-
+// taken in any order, and with one file per part that is now just the order of this array.
+// Nothing in the player assumes a count or a position.
 export const sequence = [
   { id: 'one', name: 'Opening Your Heart', src: '/audio/one.mp3' },
   { id: 'two', name: 'Feeling Your Power', src: '/audio/two.mp3' },
