@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { sequence, ordered, title } from './audio/sequence.js'
+import { sequence, title } from './audio/sequence.js'
 import { player } from './audio/player.js'
 import StartScreen from './views/StartScreen.vue'
 import WalkingScreen from './views/WalkingScreen.vue'
@@ -13,10 +13,15 @@ const screen = ref('start')
 // instead of having drifted.
 const position = ref(0)
 
-// The running order is settled once, on load, before anything is fetched. Everything downstream
-// reads this rather than `sequence`, so the name on screen always belongs to the audio behind
-// it. `sequence` is the declared order, `plan` is this morning's.
-const plan = ordered(sequence)
+// The running order, settled once on load, before anything is fetched. Everything downstream
+// reads this rather than `sequence` directly, so the name on screen always belongs to the audio
+// behind it.
+//
+// The declared order is the order. His call, 2026-09-07. `ordered()` is the reorder mechanism
+// and it stays built and unused, because the join makes any order free and the day that gets
+// wanted this is the only line that changes. Swapping in `ordered(sequence)` shuffles two,
+// three and four and leaves one first and five last.
+const plan = sequence
 
 const segment = computed(() => plan[position.value])
 

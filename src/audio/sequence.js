@@ -28,12 +28,11 @@ export const sequence = [
 ]
 
 // One walk's running order. Fixed parts keep their slot, the rest are shuffled into what is
-// left. Called once per page load, so the order is settled before anything is fetched and the
-// name on screen always belongs to the audio behind it.
+// left.
 //
-// ⚠ Shuffling on every load is a product behaviour, not a technical one, and it is his to keep
-// or drop. Passing `sequence` straight to the player instead of calling this gives the declared
-// order back, and that is the only change needed.
+// ⚠ NOT IN USE. The declared order above is the order, his call 2026-09-07. This stays because
+// joining the files at runtime makes any order free, so the reorder the guide allows costs one
+// line in App.vue whenever it is wanted. Do not delete it and do not wire it up.
 export function ordered(parts = sequence) {
   const slots = parts.map((part) => (part.fixed ? part : null))
   const movable = parts.filter((part) => !part.fixed)
