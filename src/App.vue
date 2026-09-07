@@ -1,18 +1,24 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { sequence } from './audio/sequence.js'
+import { ref, computed, onMounted } from 'vue'
+import { sequence, ordered, title } from './audio/sequence.js'
 import { player } from './audio/player.js'
 import StartScreen from './views/StartScreen.vue'
 import WalkingScreen from './views/WalkingScreen.vue'
 import EndScreen from './views/EndScreen.vue'
 
-// Throwaway. Position comes from the media element's own playback time once the audio engine
-// exists, and this index gets deleted rather than kept as a fallback that could start a screen
-// with no audio behind it. FRD-002 FR-18.
 const screen = ref('start')
+
+// The player owns the position and reports it back, so this follows the audio rather than
+// driving it. It is derived from playback time, so it is right on return from a locked screen
+// instead of having drifted.
 const position = ref(0)
 
-const segment = computed(() => sequence[position.value])
+// The running order is settled once, on load, before anything is fetched. Everything downstream
+// reads this rather than `sequence`, so the name on screen always belongs to the audio behind
+// it. `sequence` is the declared order, `plan` is this morning's.
+const plan = ordered(sequence)
+
+const segment = computed(() => plan[position.value])
 
 // Static. Nothing persists in this slice, so this counts nothing and is a display value only.
 // Streaks are out of scope in CLAUDE.md and this is in on his instruction, 2026-09-04.
@@ -25,9 +31,17 @@ const mornings = 9
 // start() stays synchronous all the way into the player. An await anywhere on this path and
 // Safari drops the gesture, which looks like nothing in desktop Chrome and like a dead app on
 // the phone, and here it would cost all five unlocks rather than one.
+// The download starts while the start screen is up, not after the tap. It is a fetch, so it
+// needs no user gesture, and by the time the button is pressed the join is usually already done.
+onMounted(() => {
+  player.prepare(plan, title).catch((error) => {
+    console.warn('audio failed to load', error)
+  })
+})
+
 function start() {
   screen.value = 'walking'
-  player.start(sequence, {
+  player.start({
     onPart: (next) => {
       position.value = next
     },
