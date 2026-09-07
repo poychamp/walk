@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { sequence } from './audio/sequence.js'
+import { player } from './audio/player.js'
 import StartScreen from './views/StartScreen.vue'
 import WalkingScreen from './views/WalkingScreen.vue'
 import EndScreen from './views/EndScreen.vue'
@@ -17,17 +18,23 @@ const segment = computed(() => sequence[position.value])
 // Streaks are out of scope in CLAUDE.md and this is in on his instruction, 2026-09-04.
 const mornings = 9
 
+// The player owns the position now. It advances itself at each part's natural end and reports
+// back, so this ref follows the audio rather than driving it. That is what keeps the part name
+// on screen matching what is actually playing. TASK-004.
+//
+// start() stays synchronous all the way into the player. An await anywhere on this path and
+// Safari drops the gesture, which looks like nothing in desktop Chrome and like a dead app on
+// the phone, and here it would cost all five unlocks rather than one.
 function start() {
-  position.value = 0
   screen.value = 'walking'
-}
-
-function advance() {
-  if (position.value < sequence.length - 1) {
-    position.value += 1
-    return
-  }
-  screen.value = 'end'
+  player.start(sequence, {
+    onPart: (next) => {
+      position.value = next
+    },
+    onFinish: () => {
+      screen.value = 'end'
+    },
+  })
 }
 
 // The whole viewport is the tap target on the walking screen, because the copy says anywhere.
@@ -39,9 +46,20 @@ function advance() {
 // on Start runs start(), which sets screen to walking, and then keeps bubbling to here, where
 // the guard now passes and advance() eats part one. See the .stop in StartScreen.vue.
 function tap() {
-  if (screen.value === 'walking') {
-    advance()
+  if (screen.value !== 'walking') {
+    return
   }
+
+  // Skipping forward. The walk does not need this, it advances on its own, and it is kept so
+  // the line at the bottom of the screen stays true. On the last part there is nothing to skip
+  // to, so it ends the walk.
+  if (position.value < sequence.length - 1) {
+    player.advance()
+    return
+  }
+
+  player.stop()
+  screen.value = 'end'
 }
 </script>
 

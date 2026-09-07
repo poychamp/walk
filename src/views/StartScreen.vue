@@ -12,7 +12,10 @@ defineEmits(['start'])
     <!-- .stop is load bearing. App.vue puts a tap-to-advance handler on main, and this button
          is inside it. Without stopping propagation, one click starts the walk and then bubbles
          up to that handler, which sees the screen already switched and advances past part one.
-         Any future control on this screen needs the same. -->
+         Any future control on this screen needs the same.
+
+         It got sharper once audio landed. Without .stop, one tap now starts part one and then
+         immediately replaces it with part two over the top of it. FRD-003 FR-27. -->
     <button
       type="button"
       class="start mt-16 flex h-[176px] w-[176px] items-center justify-center rounded-full
