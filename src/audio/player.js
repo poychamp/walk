@@ -25,9 +25,15 @@
 // freezes JS timers once the screen locks, which is exactly when this is running, and a derived
 // position self corrects on return where an accumulated one drifts.
 
-// A tenth of a second of silence. Used only to take the audio route on the Start tap when the
-// download has not finished yet, so the element is already playing when the real track is
-// handed to it. It loops, so it never fires `ended`.
+// A tenth of a second of silence. It takes the audio route on the Start tap when the download
+// has not finished yet, so the element is already playing when the real track is handed to it.
+// It loops, so it never fires `ended`.
+//
+// ⚠ As of PRD-004 the Start button is disabled until the join has landed, so start() can no
+// longer be called before the real track exists and the branch below is unreachable. It stays
+// as a guard rather than a path. If the gate is ever loosened, or a bug lets a tap through
+// early, this is what stops that becoming an app that looks alive and makes no sound. Do not
+// delete it on the grounds that nothing reaches it. FRD-004 FR-58.
 const PRIMER =
   'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//MQxAAAAANIAAAAAExBTUUzLjEwMFVVVVX/8xLEDQAAA0gAAAAAVVVVVVVVVVVVVVVVVVX/8xDEGwAAA0gAAAAAVVVVVVVVVVVVVVVVVf/zEMQoAAADSAAAAABVVVVVVVVVVVVVVVVV//MQxDUAAANIAAAAAFVVVVVVVVVVVVVVVVX/8xDEQgAAA0gAAAAAVVVVVVVVVVVVVVVVVQ=='
 
@@ -42,6 +48,25 @@ export function createPlayer(createElement = () => new Audio()) {
   let waiting = false
   let url = null
 
+  // Bumped on entry to every prepare. A join that finds the counter has moved on while it was
+  // awaiting is a stale one and returns without touching anything, so two reorders close
+  // together can never race to attach and the last order committed is the one that plays.
+  // FRD-004 FR-53.
+  let generation = 0
+
+  // Readiness, pushed out rather than polled. The player owns the flag because the player owns
+  // the element, which is what saves every caller from keeping its own copy in step. FR-57.
+  let announce = null
+
+  // The fetched bytes, for the life of the page. A reorder is a rebuild from these, never a
+  // second download. FR-50.
+  //
+  // ⚠ It holds the in-flight PROMISE, not the resolved buffer. Two prepares can be running at
+  // once, because Start is disabled during the first load and the list is not, so a drag can
+  // commit at 250ms with five requests still open. Caching the buffer would have both callers
+  // miss and both fetch. Caching the promise makes the second one await the first. FR-51.
+  const bytes = new Map()
+
   // Attaching a handler is not the same as awaiting before the call. AbortError fires whenever
   // a load is interrupted, which handing the element the real track does on purpose.
   function guard(started) {
@@ -54,6 +79,35 @@ export function createPlayer(createElement = () => new Audio()) {
       })
     }
     return started
+  }
+
+  function setReady(next) {
+    ready = next
+    if (announce) {
+      announce(next)
+    }
+  }
+
+  function load(src) {
+    if (bytes.has(src)) {
+      return bytes.get(src)
+    }
+
+    const pending = fetch(src)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`${response.status} for ${src}`)
+        }
+        return response.arrayBuffer()
+      })
+      .catch((error) => {
+        // One transient failure must not poison this file for the life of the page. FR-52.
+        bytes.delete(src)
+        throw error
+      })
+
+    bytes.set(src, pending)
+    return pending
   }
 
   // Lock screen metadata. One title for the whole walk, set once, because iOS sees one resource
@@ -141,7 +195,7 @@ export function createPlayer(createElement = () => new Audio()) {
   function attach(objectUrl) {
     element.loop = false
     element.src = objectUrl
-    ready = true
+    setReady(true)
 
     if (waiting) {
       waiting = false
@@ -158,32 +212,45 @@ export function createPlayer(createElement = () => new Audio()) {
         wire()
       }
 
+      const mine = (generation += 1)
+
       title = name
       describe()
+      setReady(false)
 
+      // ⚠ Computed into a local and assigned to `parts` only after the staleness check below.
+      // Assigning it up here would let a superseded join overwrite the boundary table of the
+      // one that won. FR-54.
       let at = 0
-      parts = segments.map((part) => {
-        const placed = { ...part, startsAt: at }
+      const placed = segments.map((part) => {
+        const next = { ...part, startsAt: at }
         at += part.duration
-        return placed
+        return next
       })
 
-      const buffers = await Promise.all(
-        segments.map((part) =>
-          fetch(part.src).then((response) => {
-            if (!response.ok) {
-              throw new Error(`${response.status} for ${part.src}`)
-            }
-            return response.arrayBuffer()
-          }),
-        ),
-      )
+      const buffers = await Promise.all(segments.map((part) => load(part.src)))
 
+      if (mine !== generation) {
+        return false
+      }
+
+      parts = placed
+
+      // One joined resource is alive at a time. The element holds its own reference until src
+      // moves, so revoking here and creating below is the right order. FR-55.
       if (url) {
         URL.revokeObjectURL(url)
       }
       url = URL.createObjectURL(new Blob(buffers, { type: 'audio/mpeg' }))
       attach(url)
+      return true
+    },
+
+    // Called once, from App.vue on mount. Fires on every readiness change, and once immediately
+    // with the current state so the caller never has to guess where it started.
+    onReady(fn) {
+      announce = fn
+      fn(ready)
     },
 
     // Synchronous from the first line to play(). No await, no .then before the call, no
@@ -205,6 +272,7 @@ export function createPlayer(createElement = () => new Audio()) {
         return
       }
 
+      // Unreachable while Start is gated on readiness, and kept deliberately. See PRIMER above.
       // The join has not finished. Take the route now, on this gesture, with looping silence,
       // and hand the element the real track the moment it lands. Same element throughout, so
       // there is nothing to transfer.

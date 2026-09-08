@@ -13,7 +13,7 @@ export const title = 'The Perfect Walk'
 
 // `fixed` means the part keeps its slot. Per the guide, one is always first and five is always
 // last, and two, three and four may be taken in any order. That rule is data here rather than
-// a comment, which is what makes ordered() below possible.
+// a comment, which is what lets move() in order.js hold them without a bounds check.
 //
 // `duration` is in seconds, frame exact, measured from each file's frame count at 1152 samples
 // per frame and 44100 Hz. Not the size-based estimate ffprobe prints, which is short.
@@ -26,31 +26,3 @@ export const sequence = [
   { id: 'four', name: 'Connecting with Higher Power', src: '/audio/four.mp3', duration: 357.747 },
   { id: 'five', name: 'Celebrate & Raise Your Vibration', src: '/audio/five.mp3', duration: 278.491, fixed: true },
 ]
-
-// One walk's running order. Fixed parts keep their slot, the rest are shuffled into what is
-// left.
-//
-// ⚠ NOT IN USE. The declared order above is the order, his call 2026-09-07. This stays because
-// joining the files at runtime makes any order free, so the reorder the guide allows costs one
-// line in App.vue whenever it is wanted. Do not delete it and do not wire it up.
-export function ordered(parts = sequence) {
-  const slots = parts.map((part) => (part.fixed ? part : null))
-  const movable = parts.filter((part) => !part.fixed)
-
-  for (let i = movable.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const held = movable[i]
-    movable[i] = movable[j]
-    movable[j] = held
-  }
-
-  let taken = 0
-  return slots.map((slot) => {
-    if (slot) {
-      return slot
-    }
-    const part = movable[taken]
-    taken += 1
-    return part
-  })
-}

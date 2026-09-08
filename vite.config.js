@@ -8,7 +8,13 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // `prompt`, not `autoUpdate`. autoUpdate reloads the page when a new worker takes
+      // control, which on a 26 minute unattended walk kills the audio. src/update.js owns when
+      // an update is promoted instead, and promotes it only while no walk is running.
+      registerType: 'prompt',
+      // src/update.js imports virtual:pwa-register itself, so the plugin must not also inject
+      // its own registerSW.js script.
+      injectRegister: null,
       includeAssets: ['icons/apple-touch-icon-180.png'],
       manifest: {
         name: 'The Perfect Walk',
