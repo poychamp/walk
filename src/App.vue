@@ -10,6 +10,15 @@ import WalkingScreen from './views/WalkingScreen.vue'
 import EndScreen from './views/EndScreen.vue'
 import StreakScreen from './views/StreakScreen.vue'
 
+// ⚠⚠ TEMPORARY BUILD MARKER, 2026-09-09. DELETE WITH THE PROBE IN player.js. ⚠⚠
+//
+// Two jobs. `PROBE` names which mediaSession handlers are live, so the lock screen can be read
+// against the code that produced it. `loadedAt` is stamped when this module evaluates, so a
+// changing clock proves the page actually reloaded and a frozen one proves it was served from
+// cache. Nothing here is part of the app.
+const PROBE = 'A · track only'
+const loadedAt = new Date().toTimeString().slice(0, 8)
+
 const screen = ref('start')
 
 // A waiting build is never promoted while audio is running. update.js holds the rest of that
@@ -136,6 +145,14 @@ function tap() {
     @click="tap"
   >
     <div class="relative mx-auto h-full w-full max-w-[420px] px-6">
+      <!-- ⚠⚠ TEMPORARY BUILD MARKER. DELETE THIS BLOCK. ⚠⚠ -->
+      <p
+        class="absolute inset-x-0 top-2 text-center font-label text-[11px] tracking-[0.12em]
+               text-amber"
+      >
+        {{ PROBE }} · {{ loadedAt }}
+      </p>
+
       <!-- Centred on the 45% line rather than starting at it, so content of varying height
            stays put. FRD-002 FR-14. -->
       <div class="absolute inset-x-6 top-[45%] -translate-y-1/2">

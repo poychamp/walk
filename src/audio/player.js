@@ -220,8 +220,21 @@ export function createPlayer(createElement = () => new Audio()) {
       // having done nothing. FR-24.
       on('nexttrack', () => api.advance())
       on('previoustrack', () => api.back())
-      on('seekforward', () => api.nudge(SEEK_SECONDS))
-      on('seekbackward', () => api.nudge(-SEEK_SECONDS))
+
+      // ⚠ TEMPORARY PROBE, 2026-09-09. The seek pair is registered below and commented out.
+      //
+      // On the device only seekforward and seekbackward appeared, and next and previous did not.
+      // iOS Now Playing has two slots beside play/pause, and registering the seek actions puts
+      // them in the slots the track actions would otherwise hold. That also explains his earlier
+      // observation that next and previous DO appear, which was made when neither pair had a
+      // handler and iOS was drawing its inert defaults.
+      //
+      // With the seek pair off, either next and previous appear and fire, which means the two
+      // pairs compete for the same two slots and he has to choose, or they still do not appear,
+      // which means something else is wrong and the slot theory is dead. Put the two lines back
+      // whichever way it goes.
+      // on('seekforward', () => api.nudge(SEEK_SECONDS))
+      // on('seekbackward', () => api.nudge(-SEEK_SECONDS))
     }
   }
 
