@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { backAt, endOf, nextAt, nudgeAt } from '../src/audio/jumps.js'
+import { backAt, nextAt } from '../src/audio/jumps.js'
 
 // A boundary table the shape prepare() builds, with round numbers so a wrong answer is obvious.
 // The real one is frame exact and hand measured, which is not what these cases are about.
@@ -62,41 +62,7 @@ describe('jumps', () => {
     })
   })
 
-  describe('nudgeAt', () => {
-    it('moves ten seconds later from mid walk', () => {
-      expect(nudgeAt(FIVE, 450, 10)).toBe(460)
-    })
 
-    it('moves ten seconds earlier from mid walk', () => {
-      expect(nudgeAt(FIVE, 450, -10)).toBe(440)
-    })
-
-    it('lands on zero rather than a negative time', () => {
-      expect(nudgeAt(FIVE, 4, -10)).toBe(0)
-      expect(nudgeAt(FIVE, 0, -10)).toBe(0)
-    })
-
-    it('lands on the end of the walk rather than past it', () => {
-      expect(nudgeAt(FIVE, 1495, 10)).toBe(1500)
-      expect(nudgeAt(FIVE, 1500, 10)).toBe(1500)
-    })
-
-    it('crosses a boundary forwards and lands inside the following part', () => {
-      // 295 is in part two, 305 is in part three. The seek respects no boundary.
-      expect(nudgeAt(FIVE, 295, 10)).toBe(305)
-    })
-
-    it('crosses a boundary backwards and lands inside the preceding part', () => {
-      expect(nudgeAt(FIVE, 305, -10)).toBe(295)
-    })
-  })
-
-  describe('endOf', () => {
-    it('is the last start plus the last duration', () => {
-      expect(endOf(FIVE)).toBe(1500)
-      expect(endOf(THREE)).toBe(60)
-    })
-  })
 
   describe('the ends and the shapes', () => {
     it('holds the ceiling on a three part walk, so nothing learned five', () => {
@@ -111,8 +77,6 @@ describe('jumps', () => {
     it('returns safely for an empty table', () => {
       expect(nextAt([], 0)).toBeNull()
       expect(backAt([], 0)).toBe(0)
-      expect(endOf([])).toBe(0)
-      expect(nudgeAt([], 5, 10)).toBe(0)
     })
 
     it('returns safely for an index past the end of the table', () => {

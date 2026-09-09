@@ -25,19 +25,23 @@
 // freezes JS timers once the screen locks, which is exactly when this is running, and a derived
 // position self corrects on return where an accumulated one drifts.
 
-import { backAt, nextAt, nudgeAt } from './jumps.js'
+import { backAt, nextAt } from './jumps.js'
 
-// How far a seek control moves. His number, 2026-09-09.
+// ⚠ The two lock screen buttons are mapped to PART jumps, not to a ten second seek.
 //
-// ⚠ The Media Session spec hands the action a suggested offset in `details.seekOffset` and iOS
-// suggests fifteen. The handler below ignores it on purpose, so the seek is ten wherever it is
-// pressed. The button's glyph may still read fifteen, which is a device finding and not something
-// this file can fix. FRD-006 FR-19, FR-20.
-const SEEK_SECONDS = 30
-
-// ⚠⚠ TEMPORARY, 2026-09-09. Which handler set is registered, appended to the lock screen title
-// by describe() so a screenshot says which build it came from. Keep in step with App.vue. ⚠⚠
-const PROBE = 'E'
+// Finding, 2026-09-09, on a real iPhone in a Safari tab and in the installed PWA. iOS will not
+// draw next and previous for this media whatever we register, tested with the seek pair
+// registered, absent, and explicitly nulled so no stale handler could answer. A single 26 minute
+// resource with a known duration reads as long-form and gets skip buttons instead.
+//
+// But iOS does call our seek handlers and does honour whatever distance we set, both measured on
+// the device. So the two buttons it will draw are ours to define, and his call of 2026-09-09 is
+// that they move between parts, because ten seconds inside a 26 minute walk is not the control a
+// walker in a pocket wants.
+//
+// ⚠ The cost, and it is real. iOS draws the glyph as a 10 and will not relabel it, confirmed on
+// the device and against two published writeups. So the button says ten seconds and moves a whole
+// part. That is a knowing trade, not an oversight. PRD-006 R-13, R-14 superseded.
 
 // A tenth of a second of silence. It takes the audio route on the Start tap when the download
 // has not finished yet, so the element is already playing when the real track is handed to it.
@@ -67,13 +71,6 @@ export function createPlayer(createElement = () => new Audio()) {
   // together can never race to attach and the last order committed is the one that plays.
   // FRD-004 FR-53.
   let generation = 0
-
-  // ⚠⚠ TEMPORARY PROBE E, 2026-09-09. Counters the action handlers bump, printed into the lock
-  // screen title by describe(). The question is whether iOS calls our seek handler at all or
-  // seeks the element itself and ignores it, and no amount of watching the elapsed time answers
-  // that as cleanly as a number that only our code can move. ⚠⚠
-  let seeks = 0
-  let skips = 0
 
   // Readiness, pushed out rather than polled. The player owns the flag because the player owns
   // the element, which is what saves every caller from keeping its own copy in step. FR-57.
@@ -134,17 +131,11 @@ export function createPlayer(createElement = () => new Audio()) {
   // Lock screen metadata. One title for the whole walk, set once, because iOS sees one resource
   // and the phone is pocketed anyway. Artist, album and artwork are copy and copy is his, so
   // they are left unset rather than invented.
-  //
-  // ⚠⚠ TEMPORARY, 2026-09-09. The probe id is appended to the title so a photograph of the lock
-  // screen identifies the build that drew it. The marker in App.vue cannot do that, because the
-  // thing being debugged is not on the app screen. Strip the suffix with the probe. ⚠⚠
   function describe() {
     if (!title || !('mediaSession' in navigator) || typeof window.MediaMetadata !== 'function') {
       return
     }
-    navigator.mediaSession.metadata = new window.MediaMetadata({
-      title: `${title} · ${PROBE} seek=${seeks} skip=${skips}`,
-    })
+    navigator.mediaSession.metadata = new window.MediaMetadata({ title })
   }
 
   function partAt(time) {
@@ -238,41 +229,13 @@ export function createPlayer(createElement = () => new Audio()) {
 
       // Registered once, here. Every method guards on live and ready, so a press outside a walk
       // reaches something that returns having done nothing. FR-24.
-      on('nexttrack', () => {
-        skips += 1
-        describe()
-        api.advance()
-      })
-      on('previoustrack', () => {
-        skips += 1
-        describe()
-        api.back()
-      })
-
-      // ⚠ FINDING, 2026-09-09, on a real iPhone, in a Safari tab and in the installed PWA.
-      //
-      // iOS draws its own skip-10 buttons here and will not draw next and previous, whatever we
-      // register. Tested with the seek pair registered, with it absent, and with it explicitly
-      // nulled so no stale registration from an earlier load could answer. Same result all three
-      // times. The likely cause is that a single 26 minute resource with a known duration reads
-      // as long-form to iOS, which is not something this code can change.
-      //
-      // The track handlers above stay registered anyway. No button is drawn for them and an
-      // earbud can still send the action with no button on screen.
-      //
-      // ⚠ The glyph always reads 10 whatever offset we declare, confirmed against two published
-      // writeups. So a number other than ten would put a button on the lock screen that lies
-      // about what it does. That is why SEEK_SECONDS stays at ten and is not a preference.
-      on('seekforward', () => {
-        seeks += 1
-        describe()
-        api.nudge(SEEK_SECONDS)
-      })
-      on('seekbackward', () => {
-        seeks += 1
-        describe()
-        api.nudge(-SEEK_SECONDS)
-      })
+      // All four to the same two jumps. iOS draws only the seek pair and an earbud may still
+      // send the track pair with no button on screen, so both routes lead to the same place
+      // rather than to two different behaviours the user cannot predict.
+      on('nexttrack', () => api.advance())
+      on('previoustrack', () => api.back())
+      on('seekforward', () => api.advance())
+      on('seekbackward', () => api.back())
 
       // Never registered. Position is not draggable and the walk is not a track to scrub. FR-23.
       on('seekto', null)
@@ -413,18 +376,6 @@ export function createPlayer(createElement = () => new Audio()) {
       }
     },
 
-    // Ten seconds, either way.
-    //
-    // Unlike the two jumps this does read the element, because "ten seconds from wherever we are"
-    // has no other source. It reports nothing. The `seeked` listener above already re-derives the
-    // part from the new position, which is the whole of criterion 5. FR-14.
-    nudge(offset) {
-      if (!element || !ready || !live) {
-        return
-      }
-
-      element.currentTime = nudgeAt(parts, element.currentTime, offset)
-    },
 
     stop() {
       live = false

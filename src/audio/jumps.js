@@ -40,30 +40,3 @@ export function backAt(parts, index) {
 
   return parts[index - 1].startsAt
 }
-
-// The length of the whole walk, from the table rather than from `element.duration`.
-//
-// The table is frame exact and hand measured. The browser estimates duration from the bitrate of
-// a joined MP3 that carries no Xing header, so it is a guess, a close one because the files are
-// constant bitrate. This is the app's own truth and it is the one used. FR-06.
-export function endOf(parts) {
-  if (!usable(parts)) {
-    return 0
-  }
-
-  const last = parts[parts.length - 1]
-  return last.startsAt + last.duration
-}
-
-// A ten second nudge, clamped to the walk.
-//
-// ⚠ The clamps are the walk's ends, never the current part's. The walk is one timeline and ten
-// seconds means ten seconds along it, so crossing a boundary is the normal case rather than an
-// edge case. Stopping at a boundary would make this a second, worse version of previous.
-// FR-07, FR-08.
-export function nudgeAt(parts, time, offset) {
-  const from = Number.isFinite(time) ? time : 0
-  const by = Number.isFinite(offset) ? offset : 0
-
-  return Math.min(Math.max(from + by, 0), endOf(parts))
-}
