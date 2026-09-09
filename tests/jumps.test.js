@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { backAt, nextAt } from '../src/audio/jumps.js'
+import { backAt, endOf, nextAt } from '../src/audio/jumps.js'
 
 // A boundary table the shape prepare() builds, with round numbers so a wrong answer is obvious.
 // The real one is frame exact and hand measured, which is not what these cases are about.
@@ -63,6 +63,17 @@ describe('jumps', () => {
   })
 
 
+
+  describe('endOf', () => {
+    it('is the last start plus the last duration', () => {
+      expect(endOf(FIVE)).toBe(1500)
+      expect(endOf(THREE)).toBe(60)
+    })
+
+    it('is zero for an empty table, so the run-out cannot seek somewhere strange', () => {
+      expect(endOf([])).toBe(0)
+    })
+  })
 
   describe('the ends and the shapes', () => {
     it('holds the ceiling on a three part walk, so nothing learned five', () => {

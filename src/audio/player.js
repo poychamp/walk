@@ -25,7 +25,11 @@
 // freezes JS timers once the screen locks, which is exactly when this is running, and a derived
 // position self corrects on return where an accumulated one drifts.
 
-import { backAt, nextAt } from './jumps.js'
+import { backAt, endOf, nextAt } from './jumps.js'
+
+// How short of the end a forward press on the last part lands, in seconds. Long enough that
+// playback runs out and fires `ended` on its own, short enough to be inaudible.
+const TAIL = 0.25
 
 // ⚠ The two lock screen buttons are mapped to PART jumps, not to a ten second seek.
 //
@@ -349,9 +353,23 @@ export function createPlayer(createElement = () => new Audio()) {
         return
       }
 
-      // null is the last part, where next does nothing and the audio carries on. FR-02.
       const at = nextAt(parts, index)
+
+      // null is the last part. His call 2026-09-09, forward there runs the walk out rather than
+      // doing nothing, which supersedes PRD-006 R-08 and his own acceptance criterion 8. Both
+      // were written when this was a next-track button, where doing nothing on the last track is
+      // what every player does. It is a skip-forward button now, and with no ten second seek left
+      // this is the only way to finish a walk without unlocking the phone.
+      //
+      // ⚠ It lands a quarter second short rather than on the end exactly, and lets playback run
+      // out. Seeking to precisely the end may or may not fire `ended` depending on the device,
+      // and the morning is only recorded when it does. Running out reaches the end the way an
+      // untouched walk does, so there is one finishing path rather than two. FRD-006 risk 4.
+      //
+      // Math.max keeps it from going backwards if the walk is already inside that last quarter
+      // second. No report(), because the part has not changed.
       if (at === null) {
+        element.currentTime = Math.max(endOf(parts) - TAIL, element.currentTime)
         return
       }
 

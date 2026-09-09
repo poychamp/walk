@@ -40,3 +40,17 @@ export function backAt(parts, index) {
 
   return parts[index - 1].startsAt
 }
+
+// The length of the whole walk, from the table rather than from `element.duration`.
+//
+// The table is frame exact and hand measured. The browser estimates duration from the bitrate of
+// a joined MP3 carrying no Xing header, so it is a close guess rather than a fact. This is the
+// app's own truth and it is the one used. FRD-006 FR-06.
+export function endOf(parts) {
+  if (!usable(parts)) {
+    return 0
+  }
+
+  const last = parts[parts.length - 1]
+  return last.startsAt + last.duration
+}
