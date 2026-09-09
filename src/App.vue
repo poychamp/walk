@@ -130,15 +130,23 @@ function tap() {
 
 <template>
   <main
-    class="h-[100dvh] w-full overflow-hidden bg-night-950 text-bone
+    class="flex min-h-[100dvh] w-full flex-col overscroll-none bg-night-950 text-bone
            pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)]
            pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"
     @click="tap"
   >
-    <div class="relative mx-auto h-full w-full max-w-[420px] px-6">
-      <!-- Centred on the 45% line rather than starting at it, so content of varying height
-           stays put. FRD-002 FR-14. -->
-      <div class="absolute inset-x-6 top-[45%] -translate-y-1/2">
+    <!-- ⚠ `grow` rather than a second `min-h-[100dvh]`. Both are min-heights and `main` is
+         border-box with safe-area padding, so a viewport-height child inside a viewport-height
+         parent adds the insets on top and the page scrolls by about 80px on a notched iPhone
+         with nothing to scroll to. Growing into the parent's content box gives the same result
+         with no overflow. -->
+    <div class="relative mx-auto flex w-full max-w-[420px] grow flex-col px-6 pb-10">
+      <!-- ⚠ Not the 45% anchor any more. That was absolutely positioned, so the stack could not
+           know the bottom line existed, and at 534px against a 369px landscape viewport it ran
+           off the top and straight through the count line. `my-auto` centres it in whatever is
+           left above the bottom slot, and when nothing is left the column grows and the page
+           scrolls. Supersedes FRD-002 FR-14. -->
+      <div class="my-auto w-full py-6">
         <Transition name="fade" mode="out-in">
           <StartScreen
             v-if="screen === 'start'"
@@ -154,12 +162,14 @@ function tap() {
         </Transition>
       </div>
 
+      <!-- The bottom slot. In flow at the end of the column rather than pinned to the bottom
+           edge, so the content above it is centred in the space that is actually left.
+           `pb-10` on the column is the 40px that `bottom-[40px]` used to give, and the
+           safe-area inset now comes from `main` alone rather than being counted twice. -->
+
       <!-- A bordered pill rather than a full width line, so it is centred by this wrapper
            rather than by text-center on itself. FR-42. -->
-      <div
-        v-if="screen === 'start'"
-        class="absolute inset-x-0 bottom-[calc(40px+env(safe-area-inset-bottom))] flex justify-center"
-      >
+      <div v-if="screen === 'start'" class="flex shrink-0 justify-center">
         <!-- Secondary to Start, and every lever moves the same way. 1px against Start's 2px and
              night-800 against its dusk-700. ⚠ No active:border-amber and no active:text-amber-lift.
              Amber is the Start button's, and one accent with one owner is what makes it mean
@@ -182,9 +192,13 @@ function tap() {
         </button>
       </div>
 
+      <!-- ⚠ `min-h-[44px]` matches the pill above deliberately. Both lines now occupy the same
+           slot in the column, so a slot that changed height between screens would shift the
+           centred content during the cross fade. Pinned to the bottom edge that could not
+           happen and in flow it can. -->
       <p
         v-if="screen === 'walking'"
-        class="absolute inset-x-0 bottom-[calc(40px+env(safe-area-inset-bottom))] text-center
+        class="flex min-h-[44px] shrink-0 items-center justify-center text-center
                font-label text-[14px] leading-normal text-haze"
       >
         tap anywhere to continue

@@ -59,11 +59,18 @@
 html,
 body,
 #app {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
-  overflow: hidden;
+  /* ⚠ `overflow: hidden` was here and it had to go. The layout is a flex column that grows past
+     the viewport when the content does not fit, which is what landscape needs, and a hidden
+     overflow clips that instead of scrolling it.
+
+     overscroll-behavior belongs here rather than on `main`. The document is the scroll
+     container, and the property only does anything on the scroller or on body, from which it
+     propagates to the viewport. */
+  overscroll-behavior: none;
   background-color: var(--color-night-950);
   color: var(--color-bone);
 }
