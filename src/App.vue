@@ -4,9 +4,11 @@ import { sequence, title } from './audio/sequence.js'
 import { stored, apply, remember } from './audio/order.js'
 import { player } from './audio/player.js'
 import { setWalking } from './update.js'
+import { useMornings } from './composables/useMornings.js'
 import StartScreen from './views/StartScreen.vue'
 import WalkingScreen from './views/WalkingScreen.vue'
 import EndScreen from './views/EndScreen.vue'
+import StreakScreen from './views/StreakScreen.vue'
 
 const screen = ref('start')
 
@@ -36,9 +38,16 @@ const segment = computed(() => plan.value[position.value])
 // rebuild after a reorder. R-37.
 const ready = ref(false)
 
-// Static. Nothing persists in this slice, so this counts nothing and is a display value only.
-// Streaks are out of scope in CLAUDE.md and this is in on his instruction, 2026-09-04.
-const mornings = 9
+// The real count. `const mornings = 9` was a display value that counted nothing and it is gone.
+// FRD-005 FR-43, R-38.
+//
+// Destructured at the top level on purpose. These are refs on a plain object, and a template
+// only auto unwraps a ref that is a top level binding, so `mornings.label` in the markup would
+// render the ref itself.
+//
+// No arguments. The clock, the device zone and storage are the composable's defaults, and they
+// are options only so a test can pass its own.
+const { label: morningsLabel, dots, record } = useMornings()
 
 // The player owns the position now. It advances itself at each part's natural end and reports
 // back, so this ref follows the audio rather than driving it. That is what keeps the part name
@@ -72,15 +81,24 @@ function reorder(next) {
   })
 }
 
+// The one place a walk finishes. Both routes call it, the player reaching the end on its own
+// and the tap that ends the walk on the last part, so the two cannot diverge. FR-45, FR-47.
+//
+// It records before it switches the screen. The order makes no difference to the user and it
+// makes one to a reader, because it says the recording is the event and the screen is the
+// consequence. FR-46.
+function finish() {
+  record()
+  screen.value = 'end'
+}
+
 function start() {
   screen.value = 'walking'
   player.start({
     onPart: (next) => {
       position.value = next
     },
-    onFinish: () => {
-      screen.value = 'end'
-    },
+    onFinish: finish,
   })
 }
 
@@ -106,7 +124,7 @@ function tap() {
   }
 
   player.stop()
-  screen.value = 'end'
+  finish()
 }
 </script>
 
@@ -131,25 +149,63 @@ function tap() {
             @start="start"
           />
           <WalkingScreen v-else-if="screen === 'walking'" :segment="segment" />
+          <StreakScreen v-else-if="screen === 'streak'" :label="morningsLabel" :dots="dots" />
           <EndScreen v-else />
         </Transition>
       </div>
 
-      <p
+      <!-- A bordered pill rather than a full width line, so it is centred by this wrapper
+           rather than by text-center on itself. FR-42. -->
+      <div
         v-if="screen === 'start'"
-        class="absolute inset-x-0 bottom-[calc(40px+env(safe-area-inset-bottom))] text-center
-               font-label text-[12px] uppercase tracking-[0.18em] text-haze"
+        class="absolute inset-x-0 bottom-[calc(40px+env(safe-area-inset-bottom))] flex justify-center"
       >
-        {{ mornings }} mornings
-      </p>
+        <!-- Secondary to Start, and every lever moves the same way. 1px against Start's 2px and
+             night-800 against its dusk-700. ⚠ No active:border-amber and no active:text-amber-lift.
+             Amber is the Start button's, and one accent with one owner is what makes it mean
+             anything. FR-40, FR-41, R-42a, R-42b.
+
+             .stop for the same reason the Start button carries it. `main` holds the
+             tap-to-advance handler and its guard returns early outside the walking screen, so
+             nothing leaks today. This does not depend on that guard staying as it is. FR-39. -->
+        <button
+          type="button"
+          class="flex min-h-[44px] cursor-pointer select-none touch-manipulation items-center
+                 rounded-full border border-night-800 bg-transparent px-6
+                 font-label text-[12px] uppercase tracking-[0.18em] text-haze
+                 [-webkit-tap-highlight-color:transparent]
+                 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4
+                 focus-visible:outline-amber"
+          @click.stop="screen = 'streak'"
+        >
+          {{ morningsLabel }}
+        </button>
+      </div>
 
       <p
-        v-else-if="screen === 'walking'"
+        v-if="screen === 'walking'"
         class="absolute inset-x-0 bottom-[calc(40px+env(safe-area-inset-bottom))] text-center
                font-label text-[14px] leading-normal text-haze"
       >
         tap anywhere to continue
       </p>
+
+      <!-- The only way out of the streak screen. No swipe, no tap anywhere, no back gesture.
+           It sits here rather than in the view because it is outside the centred anchor, which
+           is the same place and the same pattern as the two lines above. FR-38, R-32, R-33. -->
+      <button
+        v-if="screen === 'streak'"
+        type="button"
+        class="absolute left-6 top-0 flex h-[44px] cursor-pointer select-none touch-manipulation
+               items-center bg-transparent
+               font-label text-[11px] uppercase tracking-[0.16em] text-haze
+               [-webkit-tap-highlight-color:transparent]
+               focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-4
+               focus-visible:outline-amber"
+        @click.stop="screen = 'start'"
+      >
+        ← back
+      </button>
     </div>
   </main>
 </template>

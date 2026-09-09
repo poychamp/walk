@@ -1,11 +1,13 @@
-// The running order, and the only file in the repo that touches localStorage.
+// The running order.
 //
 // Everything here is a plain function taking `parts` as an argument. Nothing imports
 // `sequence`, so every rule below is testable against a fabricated sequence of any shape and
 // none of them learns the number five. FRD-004 FR-01, FR-11.
 //
-// There is no class and no manager. localStorage is the state, there is one key and one
-// consumer, and an object wrapping that would hold nothing. FR-01.
+// There is no class and no manager. Storage is the state, there is one key and one consumer
+// here, and an object wrapping that would hold nothing. FR-01.
+
+import { drop, read, write } from '../storage.js'
 
 // One key, named once. Namespaced on `walk`, which is already the app's neutral name in
 // <title> and in the manifest short_name, so a second key later is `walk:something`.
@@ -36,38 +38,17 @@ export function valid(parts, ids) {
   })
 }
 
-// localStorage throws rather than returning null in Safari private browsing and wherever site
-// data is blocked. An uncaught throw here lands at module setup and takes the start screen down
-// before it paints, so every access in this file is wrapped. FR-07.
-function get() {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function set(value) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, value)
-  } catch {
-    // Nothing to do and nothing to tell the user. The order still works for this session, it
-    // just will not be there tomorrow.
-  }
-}
-
+// ⚠ The try / catch that used to sit here has moved to `storage.js`, which is now the only file
+// in the repo that names the browser store. There are two consumers of it, so the property moved
+// with it. Nothing about the behaviour of this file changed. FRD-005 FR-04, FR-05.
 export function forget() {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // Same.
-  }
+  drop(STORAGE_KEY)
 }
 
 // Read and validate. An absent key, unparseable JSON and a value that fails validation are all
 // the same outcome to the caller, which is that there is no stored order. FR-05.
 export function stored(parts) {
-  const raw = get()
+  const raw = read(STORAGE_KEY)
   if (raw === null) {
     return null
   }
@@ -90,7 +71,7 @@ export function stored(parts) {
 }
 
 export function remember(ids) {
-  set(JSON.stringify(ids))
+  write(STORAGE_KEY, JSON.stringify(ids))
 }
 
 // ids back to parts. Assumes valid() has already passed, and is never called on unvalidated
