@@ -33,7 +33,11 @@ import { backAt, nextAt, nudgeAt } from './jumps.js'
 // suggests fifteen. The handler below ignores it on purpose, so the seek is ten wherever it is
 // pressed. The button's glyph may still read fifteen, which is a device finding and not something
 // this file can fix. FRD-006 FR-19, FR-20.
-const SEEK_SECONDS = 10
+const SEEK_SECONDS = 30
+
+// ⚠⚠ TEMPORARY, 2026-09-09. Which handler set is registered, appended to the lock screen title
+// by describe() so a screenshot says which build it came from. Keep in step with App.vue. ⚠⚠
+const PROBE = 'B seek 30'
 
 // A tenth of a second of silence. It takes the audio route on the Start tap when the download
 // has not finished yet, so the element is already playing when the real track is handed to it.
@@ -123,11 +127,15 @@ export function createPlayer(createElement = () => new Audio()) {
   // Lock screen metadata. One title for the whole walk, set once, because iOS sees one resource
   // and the phone is pocketed anyway. Artist, album and artwork are copy and copy is his, so
   // they are left unset rather than invented.
+  //
+  // ⚠⚠ TEMPORARY, 2026-09-09. The probe id is appended to the title so a photograph of the lock
+  // screen identifies the build that drew it. The marker in App.vue cannot do that, because the
+  // thing being debugged is not on the app screen. Strip the suffix with the probe. ⚠⚠
   function describe() {
     if (!title || !('mediaSession' in navigator) || typeof window.MediaMetadata !== 'function') {
       return
     }
-    navigator.mediaSession.metadata = new window.MediaMetadata({ title })
+    navigator.mediaSession.metadata = new window.MediaMetadata({ title: `${title} · ${PROBE}` })
   }
 
   function partAt(time) {
@@ -221,20 +229,20 @@ export function createPlayer(createElement = () => new Audio()) {
       on('nexttrack', () => api.advance())
       on('previoustrack', () => api.back())
 
-      // ⚠ TEMPORARY PROBE, 2026-09-09. The seek pair is registered below and commented out.
+      // ⚠ TEMPORARY PROBE B, 2026-09-09. SEEK_SECONDS is 30 for this probe only.
       //
-      // On the device only seekforward and seekbackward appeared, and next and previous did not.
-      // iOS Now Playing has two slots beside play/pause, and registering the seek actions puts
-      // them in the slots the track actions would otherwise hold. That also explains his earlier
-      // observation that next and previous DO appear, which was made when neither pair had a
-      // handler and iOS was drawing its inert defaults.
+      // Probe A registered ONLY the two track actions and iOS still drew skip-10 buttons, on a
+      // real device. So the slot theory is dead. iOS does not render track buttons for a single
+      // long-form resource with a known duration, whatever we register. The track handlers stay
+      // registered anyway because an earbud can still send them with no button drawn.
       //
-      // With the seek pair off, either next and previous appear and fire, which means the two
-      // pairs compete for the same two slots and he has to choose, or they still do not appear,
-      // which means something else is wrong and the slot theory is dead. Put the two lines back
-      // whichever way it goes.
-      // on('seekforward', () => api.nudge(SEEK_SECONDS))
-      // on('seekbackward', () => api.nudge(-SEEK_SECONDS))
+      // What this probe asks. Those skip buttons exist with or without us, so do they call the
+      // handler below or does iOS seek the element itself and ignore it. Thirty seconds is a
+      // number no default produces. If a press moves thirty, the handler is ours to define and
+      // the buttons can be mapped to anything. If it moves ten, we control nothing on that lock
+      // screen and the offset is the platform's. Put SEEK_SECONDS back to 10 either way.
+      on('seekforward', () => api.nudge(SEEK_SECONDS))
+      on('seekbackward', () => api.nudge(-SEEK_SECONDS))
     }
   }
 
