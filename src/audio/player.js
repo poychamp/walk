@@ -33,11 +33,11 @@ import { backAt, nextAt, nudgeAt } from './jumps.js'
 // suggests fifteen. The handler below ignores it on purpose, so the seek is ten wherever it is
 // pressed. The button's glyph may still read fifteen, which is a device finding and not something
 // this file can fix. FRD-006 FR-19, FR-20.
-const SEEK_SECONDS = 30
+const SEEK_SECONDS = 10
 
 // ⚠⚠ TEMPORARY, 2026-09-09. Which handler set is registered, appended to the lock screen title
 // by describe() so a screenshot says which build it came from. Keep in step with App.vue. ⚠⚠
-const PROBE = 'B seek 30'
+const PROBE = 'C track, seek nulled'
 
 // A tenth of a second of silence. It takes the audio route on the Start tap when the download
 // has not finished yet, so the element is already playing when the real track is handed to it.
@@ -207,42 +207,46 @@ export function createPlayer(createElement = () => new Audio()) {
     // The lock screen and the earbud. This is the only route to either, and there is no in-app
     // equivalent being built. FRD-006 FR-17, FR-26.
     //
-    // ⚠ Each registration is isolated. setActionHandler throws a TypeError for an action the
-    // browser does not know, and one unknown action must not stop the ones after it from
-    // registering. Without this, an older browser loses play and pause too and the failure looks
-    // like nothing. FR-21.
+    // ⚠ EVERY action is named, and the ones we do not want are set to null rather than left
+    // unmentioned. A registration lives on the document, not on this module, so an action left
+    // unmentioned keeps whatever handler an earlier load installed. Safari restoring a
+    // backgrounded tab from its page cache keeps that context alive across what looks like a
+    // reload, which is how a handler we stopped registering can still be answering.
+    //
+    // ⚠ Each call is isolated. setActionHandler throws a TypeError for an action the browser
+    // does not know, and one unknown action must not stop the ones after it. FR-21.
     if ('mediaSession' in navigator) {
       const on = (action, fn) => {
         try {
           navigator.mediaSession.setActionHandler(action, fn)
         } catch {
-          // The browser does not have this action. Absent rather than broken. FR-29 in PRD terms.
+          // The browser does not have this action. Absent rather than broken.
         }
       }
 
       on('play', () => guard(element.play()))
       on('pause', () => element.pause())
 
-      // Registered once, here, and never re-registered on a reorder or removed. Every method
-      // below guards on live and ready, so a press outside a walk reaches something that returns
-      // having done nothing. FR-24.
+      // Registered once, here. Every method guards on live and ready, so a press outside a walk
+      // reaches something that returns having done nothing. FR-24.
       on('nexttrack', () => api.advance())
       on('previoustrack', () => api.back())
 
-      // ⚠ TEMPORARY PROBE B, 2026-09-09. SEEK_SECONDS is 30 for this probe only.
+      // ⚠ TEMPORARY PROBE C, 2026-09-09.
       //
-      // Probe A registered ONLY the two track actions and iOS still drew skip-10 buttons, on a
-      // real device. So the slot theory is dead. iOS does not render track buttons for a single
-      // long-form resource with a known duration, whatever we register. The track handlers stay
-      // registered anyway because an earbud can still send them with no button drawn.
+      // Registering seekforward and seekbackward makes iOS draw skip buttons in the two slots
+      // the track buttons would otherwise hold, so the two pairs cannot both be on screen.
+      // Probe A tried to test that by not registering the seek pair and it did not restore the
+      // track buttons, which is explained by the stale registration above rather than by iOS.
       //
-      // What this probe asks. Those skip buttons exist with or without us, so do they call the
-      // handler below or does iOS seek the element itself and ignore it. Thirty seconds is a
-      // number no default produces. If a press moves thirty, the handler is ours to define and
-      // the buttons can be mapped to anything. If it moves ten, we control nothing on that lock
-      // screen and the offset is the platform's. Put SEEK_SECONDS back to 10 either way.
-      on('seekforward', () => api.nudge(SEEK_SECONDS))
-      on('seekbackward', () => api.nudge(-SEEK_SECONDS))
+      // This probe nulls them explicitly. If the track buttons now appear, the pairs compete and
+      // it is a choice. If skip buttons still appear against a title reading C, the pairs do not
+      // compete and iOS simply will not draw track buttons for this media.
+      on('seekforward', null)
+      on('seekbackward', null)
+
+      // Never registered. Position is not draggable and the walk is not a track to scrub. FR-23.
+      on('seekto', null)
     }
   }
 
