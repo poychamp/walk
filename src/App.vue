@@ -16,7 +16,7 @@ import StreakScreen from './views/StreakScreen.vue'
 // against the code that produced it. `loadedAt` is stamped when this module evaluates, so a
 // changing clock proves the page actually reloaded and a frozen one proves it was served from
 // cache. Nothing here is part of the app.
-const PROBE = 'C · track, seek nulled'
+const PROBE = 'E · counters'
 const loadedAt = new Date().toTimeString().slice(0, 8)
 
 const screen = ref('start')
