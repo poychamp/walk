@@ -25,6 +25,16 @@
 // freezes JS timers once the screen locks, which is exactly when this is running, and a derived
 // position self corrects on return where an accumulated one drifts.
 
+import { backAt, nextAt, nudgeAt } from './jumps.js'
+
+// How far a seek control moves. His number, 2026-09-09.
+//
+// ⚠ The Media Session spec hands the action a suggested offset in `details.seekOffset` and iOS
+// suggests fifteen. The handler below ignores it on purpose, so the seek is ten wherever it is
+// pressed. The button's glyph may still read fifteen, which is a device finding and not something
+// this file can fix. FRD-006 FR-19, FR-20.
+const SEEK_SECONDS = 10
+
 // A tenth of a second of silence. It takes the audio route on the Start tap when the download
 // has not finished yet, so the element is already playing when the real track is handed to it.
 // It loops, so it never fires `ended`.
@@ -186,9 +196,32 @@ export function createPlayer(createElement = () => new Audio()) {
       }
     })
 
+    // The lock screen and the earbud. This is the only route to either, and there is no in-app
+    // equivalent being built. FRD-006 FR-17, FR-26.
+    //
+    // ⚠ Each registration is isolated. setActionHandler throws a TypeError for an action the
+    // browser does not know, and one unknown action must not stop the ones after it from
+    // registering. Without this, an older browser loses play and pause too and the failure looks
+    // like nothing. FR-21.
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', () => guard(element.play()))
-      navigator.mediaSession.setActionHandler('pause', () => element.pause())
+      const on = (action, fn) => {
+        try {
+          navigator.mediaSession.setActionHandler(action, fn)
+        } catch {
+          // The browser does not have this action. Absent rather than broken. FR-29 in PRD terms.
+        }
+      }
+
+      on('play', () => guard(element.play()))
+      on('pause', () => element.pause())
+
+      // Registered once, here, and never re-registered on a reorder or removed. Every method
+      // below guards on live and ready, so a press outside a walk reaches something that returns
+      // having done nothing. FR-24.
+      on('nexttrack', () => api.advance())
+      on('previoustrack', () => api.back())
+      on('seekforward', () => api.nudge(SEEK_SECONDS))
+      on('seekbackward', () => api.nudge(-SEEK_SECONDS))
     }
   }
 
@@ -204,7 +237,9 @@ export function createPlayer(createElement = () => new Audio()) {
     }
   }
 
-  return {
+  // Named rather than returned inline, because the action handlers registered in wire() call
+  // through it. wire() runs on the first prepare(), by which time this is assigned.
+  const api = {
     // Called on mount, not in a gesture. Fetching needs no user activation and the download
     // runs while the start screen is up rather than after the tap.
     async prepare(segments, name = '') {
@@ -284,13 +319,57 @@ export function createPlayer(createElement = () => new Audio()) {
       guard(element.play())
     },
 
-    // Skipping forward. A seek inside the one resource, so the route never moves.
+    // Next, and the walking screen's skip forward. One method, two callers, since TASK-004.
+    // A seek inside the one resource, so the route never moves.
+    //
+    // ⚠ The target comes from `index`, never from reading `element.currentTime` back. A seek is
+    // asynchronous, so a read would return the pre-seek time and two presses one frame apart
+    // would both land on the same part. `report()` moves `index` before this returns, so the
+    // second press reads the already-moved index and lands one further on. That is the whole of
+    // criterion 14 and it is one line's difference. Same in back(). FRD-006 FR-13.
     advance() {
-      if (!element || !ready || !live || index < 0 || index >= parts.length - 1) {
+      if (!element || !ready || !live || index < 0) {
         return
       }
-      element.currentTime = parts[index + 1].startsAt
+
+      // null is the last part, where next does nothing and the audio carries on. FR-02.
+      const at = nextAt(parts, index)
+      if (at === null) {
+        return
+      }
+
+      element.currentTime = at
       report(index + 1)
+    },
+
+    // Previous. A seek inside the one resource, the same as advance().
+    //
+    // ⚠ It never restarts the current part. On anything but the first part it goes to the start
+    // of the one before, and on the first part it goes to zero and reports nothing, because no
+    // part changed. See the note in jumps.js. FR-12.
+    back() {
+      if (!element || !ready || !live || index < 0) {
+        return
+      }
+
+      element.currentTime = backAt(parts, index)
+
+      if (index > 0) {
+        report(index - 1)
+      }
+    },
+
+    // Ten seconds, either way.
+    //
+    // Unlike the two jumps this does read the element, because "ten seconds from wherever we are"
+    // has no other source. It reports nothing. The `seeked` listener above already re-derives the
+    // part from the new position, which is the whole of criterion 5. FR-14.
+    nudge(offset) {
+      if (!element || !ready || !live) {
+        return
+      }
+
+      element.currentTime = nudgeAt(parts, element.currentTime, offset)
     },
 
     stop() {
@@ -307,6 +386,8 @@ export function createPlayer(createElement = () => new Audio()) {
       // error on a walk that is already over.
     },
   }
+
+  return api
 }
 
 export const player = createPlayer()
